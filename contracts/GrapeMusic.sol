@@ -23,12 +23,18 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     SaleConfig public saleConfig;
 
     mapping(address => uint256) public whitelist;
+    mapping(address => uint256) public beneficiarylist;
+
+    address[] public withdrawAddress;
+    uint256[] public shares;
 
     constructor(
+        string memory name,
+        string memory symbol,
         uint256 maxAddressBatchSize_,
         uint256 collectionSize_,
         uint256 auctionMaxSize_
-    ) ERC721A("Grape Music NFT", "GMNFT") {
+    ) ERC721A(name, symbol) {
         maxPerAddressDuringMint = maxAddressBatchSize_;
         collectionSize = collectionSize_;
         auctionMaxSize = auctionMaxSize_;
@@ -42,7 +48,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     function auctionMint(uint256 quantity) external payable callerIsUser {
         uint256 _saleStartTime = uint256(saleConfig.auctionSaleStartTime);
         require(_saleStartTime != 0 && block.timestamp >= _saleStartTime, "sale has not started yet");
-        require(totalSupply() + quantity <= auctionMaxSize, "The number of auctions has reached the upper limit");
+        require(totalSupply() + quantity <= auctionMaxSize, "the number of auctions has reached the upper limit");
         require(numberMinted(msg.sender) + quantity <= maxPerAddressDuringMint, "reaches the upper limit of personal casting");
         uint256 totalCost = getAuctionPrice(_saleStartTime) * quantity;
         _safeMint(msg.sender, quantity);
@@ -121,10 +127,18 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         saleConfig.publicSaleKey = key;
     }
 
-    function seedwhitelist(address[] memory addresses, uint256[] memory numSlots) external onlyOwner {
+    function setWhiteList(address[] memory addresses, uint256[] memory numSlots) external onlyOwner {
         require(addresses.length == numSlots.length, "addresses does not match numSlots length");
         for (uint256 i = 0; i < addresses.length; i++) {
             whitelist[addresses[i]] = numSlots[i];
+        }
+    }
+
+    function setBeneficiaryList(address[] memory addresses, uint256[] memory numShares) external onlyOwner {
+        require(addresses.length == numShares.length, "addresses does not match numScaleSlots length");
+        for (uint256 i = 0; i < addresses.length; i++) {
+            withdrawAddress.push(addresses[i]);
+            shares.push(numShares[i]);
         }
     }
 
@@ -139,8 +153,12 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     }
 
     function withdrawMoney() external onlyOwner nonReentrant {
-        (bool success, ) = msg.sender.call{value: address(this).balance}("");
-        require(success, "Transfer failed.");
+        require(withdrawAddress.length != 0, "No beneficiary address");
+        uint256 balance = address(this).balance;
+        for (uint256 i = 0; i < withdrawAddress.length; i++) {
+            uint256 amount = (balance * shares[i]) / 100;
+            payable(withdrawAddress[i]).transfer(amount);
+        }
     }
 
     function numberMinted(address owner) public view returns (uint256) {
@@ -148,6 +166,6 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     }
 
     function getOwnershipData(uint256 tokenId) external view returns (TokenOwnership memory) {
-        return ownershipOf(tokenId);
+        return _ownershipOf(tokenId);
     }
 }
