@@ -97,7 +97,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     uint256 public constant AUCTION_END_PRICE = 0.15 ether;
     uint256 public constant AUCTION_PRICE_CURVE_LENGTH = 340 minutes;
     uint256 public constant AUCTION_DROP_INTERVAL = 20 minutes;
-    uint256 public constant AUCTION_DROP_PER_STEP = (AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL); // 拍卖间隔平均值
+    uint256 public constant AUCTION_DROP_PER_STEP = (AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
 
     function getAuctionPrice(uint256 _saleStartTime) public view returns (uint256) {
         if (block.timestamp < _saleStartTime) {
