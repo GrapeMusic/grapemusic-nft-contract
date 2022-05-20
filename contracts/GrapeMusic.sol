@@ -45,6 +45,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         _;
     }
 
+    // auction mint
     function auctionMint(uint256 quantity) external payable callerIsUser {
         uint256 _saleStartTime = uint256(saleConfig.auctionSaleStartTime);
         require(_saleStartTime != 0 && block.timestamp >= _saleStartTime, "sale has not started yet");
@@ -55,16 +56,21 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         refundIfOver(totalCost);
     }
 
-    function whitelistMint() external payable callerIsUser {
+    // white list mint
+    function whitelistMint(uint256 quantity) external payable callerIsUser {
         uint256 price = uint256(saleConfig.mintlistPrice);
         require(price != 0, "whitelist sale has not begun yet");
         require(whitelist[msg.sender] > 0, "not eligible for whitelist mint");
+        require(whitelist[msg.sender] >= quantity, "exceeding the number of castings in the whitelist");
         require(totalSupply() + 1 <= collectionSize, "reached max supply");
-        whitelist[msg.sender]--;
-        _safeMint(msg.sender, 1);
-        refundIfOver(price);
+        for (uint256 i = 0; i < quantity; i++) {
+            whitelist[msg.sender]--;
+        }
+        _safeMint(msg.sender, quantity);
+        refundIfOver(price * quantity);
     }
 
+    // public sale mint
     function publicSaleMint(uint256 quantity, uint256 callerPublicSaleKey) external payable callerIsUser {
         SaleConfig memory config = saleConfig;
         uint256 publicSaleKey = uint256(config.publicSaleKey);
@@ -78,6 +84,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         refundIfOver(publicPrice * quantity);
     }
 
+    // Refund if over
     function refundIfOver(uint256 price) private {
         require(msg.value >= price, "Need to send more ETH.");
         if (msg.value > price) {
@@ -85,6 +92,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         }
     }
 
+    // Determining whether to start a public sale
     function isPublicSaleOn(
         uint256 publicPriceWei,
         uint256 publicSaleKey,
@@ -99,6 +107,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     uint256 public constant AUCTION_DROP_INTERVAL = 20 minutes;
     uint256 public constant AUCTION_DROP_PER_STEP = (AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
 
+    // Get auction price
     function getAuctionPrice(uint256 _saleStartTime) public view returns (uint256) {
         if (block.timestamp < _saleStartTime) {
             return AUCTION_START_PRICE;
@@ -111,6 +120,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         }
     }
 
+    // Set initial data configuration
     function setupSaleInfo(
         uint64 mintlistPrice,
         uint64 publicPrice,
@@ -119,14 +129,31 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         saleConfig = SaleConfig(0, publicSaleStartTime, mintlistPrice, publicPrice, saleConfig.publicSaleKey);
     }
 
+    // Send the remaining amount of NFTs to the wallet
+    function devMint(address devAddress, uint256 quantity) external onlyOwner {
+        require(devAddress != address(0), "address cannot be empty");
+        require(quantity > 0, "quantity cannot be less than or equal to 0");
+        uint256 leftOver = collectionSize - totalSupply();
+        while (leftOver > 10) {
+            _safeMint(devAddress, 10);
+            leftOver -= 10;
+        }
+        if (leftOver > 0) {
+            _safeMint(devAddress, leftOver);
+        }
+    }
+
+    // Set the Dutch beat start time
     function setAuctionSaleStartTime(uint32 timestamp) external onlyOwner {
         saleConfig.auctionSaleStartTime = timestamp;
     }
 
+    // Set public mint key
     function setPublicSaleKey(uint32 key) external onlyOwner {
         saleConfig.publicSaleKey = key;
     }
 
+    // Set up a whitelist
     function setWhiteList(address[] memory addresses, uint256[] memory numSlots) external onlyOwner {
         require(addresses.length == numSlots.length, "addresses does not match numSlots length");
         for (uint256 i = 0; i < addresses.length; i++) {
@@ -134,6 +161,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         }
     }
 
+    // Set up share account and ratio
     function setBeneficiaryList(address[] memory addresses, uint256[] memory numShares) external onlyOwner {
         require(addresses.length == numShares.length, "addresses does not match numScaleSlots length");
         for (uint256 i = 0; i < addresses.length; i++) {
