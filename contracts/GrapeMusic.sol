@@ -7,6 +7,15 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "erc721a/contracts/ERC721A.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+//   _____                     ___  ___          _
+//  |  __ \                    |  \/  |         (_)
+//  | |  \/_ __ __ _ _ __   ___| .  . |_   _ ___ _  ___
+//  | | __| '__/ _` | '_ \ / _ \ |\/| | | | / __| |/ __|
+//  | |_\ \ | | (_| | |_) |  __/ |  | | |_| \__ \ | (__
+//   \____/_|  \__,_| .__/ \___\_|  |_/\__,_|___/_|\___|
+//                 | |
+//                 |_|
+
 contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     uint256 public immutable maxPerAddressDuringMint;
     uint256 public immutable auctionMaxSize;
@@ -62,7 +71,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         require(price != 0, "whitelist sale has not begun yet");
         require(whitelist[msg.sender] > 0, "not eligible for whitelist mint");
         require(whitelist[msg.sender] >= quantity, "exceeding the number of castings in the whitelist");
-        require(totalSupply() + 1 <= collectionSize, "reached max supply");
+        require(totalSupply() + quantity <= collectionSize, "reached max supply");
         for (uint256 i = 0; i < quantity; i++) {
             whitelist[msg.sender]--;
         }
