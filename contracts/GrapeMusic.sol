@@ -193,7 +193,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         require(withdrawAddress.length != 0, "No beneficiary address");
         uint256 balance = address(this).balance;
         for (uint256 i = 0; i < withdrawAddress.length; i++) {
-            uint256 amount = (balance * shares[i]) / 100;
+            uint256 amount = balance * (shares[i] / 100);
             payable(withdrawAddress[i]).transfer(amount);
         }
     }
