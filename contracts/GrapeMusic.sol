@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -17,192 +16,166 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 //                 |_|
 
 contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
-    uint256 public immutable maxPerAddressDuringMint;
-    uint256 public immutable auctionMaxSize;
-    uint256 public immutable collectionSize;
+    mapping(address => uint256) public whiteList; // White list
+    uint256 public immutable collectionSize; // Total issuance of NFTs.
+
+    address[] private profitAccount; // Address participating in profit sharing.
+    uint8[] private profitProportion; // Profit sharing ratio of participating accounts.
+    string private baseTokenURI; // NFT base url
 
     struct SaleConfig {
-        uint32 auctionSaleStartTime;
-        uint32 publicSaleStartTime;
-        uint64 mintlistPrice;
-        uint64 publicPrice;
-        uint32 publicSaleKey;
+        uint32 whiteStartTime; // White list sale start time
+        uint64 whitePrice; // White list sale price
+        uint32 publicStartTime; // Public sale start time
+        uint64 publicPrice; // Public sale price
+        uint8 publicMaxNumber; // Maximum public number
     }
-
     SaleConfig public saleConfig;
 
-    mapping(address => uint256) public whitelist;
-    mapping(address => uint256) public beneficiarylist;
-
-    address[] public withdrawAddress;
-    uint256[] public shares;
-
-    constructor(
-        string memory name,
-        string memory symbol,
-        uint256 maxAddressBatchSize_,
-        uint256 collectionSize_,
-        uint256 auctionMaxSize_
-    ) ERC721A(name, symbol) {
-        maxPerAddressDuringMint = maxAddressBatchSize_;
+    constructor(string memory name, string memory symbol, uint256 collectionSize_) ERC721A(name, symbol) {
         collectionSize = collectionSize_;
-        auctionMaxSize = auctionMaxSize_;
     }
 
+    // Verify if the caller is a real user.
     modifier callerIsUser() {
         require(tx.origin == msg.sender, "The caller is another contract");
         _;
     }
 
-    // auction mint
-    function auctionMint(uint256 quantity) external payable callerIsUser {
-        uint256 _saleStartTime = uint256(saleConfig.auctionSaleStartTime);
-        require(_saleStartTime != 0 && block.timestamp >= _saleStartTime, "sale has not started yet");
-        require(totalSupply() + quantity <= auctionMaxSize, "the number of auctions has reached the upper limit");
-        require(numberMinted(msg.sender) + quantity <= maxPerAddressDuringMint, "reaches the upper limit of personal casting");
-        uint256 totalCost = getAuctionPrice(_saleStartTime) * quantity;
-        _safeMint(msg.sender, quantity);
-        refundIfOver(totalCost);
-    }
-
-    // white list mint
-    function whitelistMint(uint256 quantity) external payable callerIsUser {
-        uint256 price = uint256(saleConfig.mintlistPrice);
-        require(price != 0, "whitelist sale has not begun yet");
-        require(whitelist[msg.sender] > 0, "not eligible for whitelist mint");
-        require(whitelist[msg.sender] >= quantity, "exceeding the number of castings in the whitelist");
-        require(totalSupply() + quantity <= collectionSize, "reached max supply");
-        for (uint256 i = 0; i < quantity; i++) {
-            whitelist[msg.sender]--;
-        }
-        _safeMint(msg.sender, quantity);
-        refundIfOver(price * quantity);
-    }
-
-    // public sale mint
-    function publicSaleMint(uint256 quantity, uint256 callerPublicSaleKey) external payable callerIsUser {
-        SaleConfig memory config = saleConfig;
-        uint256 publicSaleKey = uint256(config.publicSaleKey);
-        uint256 publicPrice = uint256(config.publicPrice);
-        uint256 publicSaleStartTime = uint256(config.publicSaleStartTime);
-        require(publicSaleKey == callerPublicSaleKey, "called with incorrect public sale key");
-        require(isPublicSaleOn(publicPrice, publicSaleKey, publicSaleStartTime), "public sale has not begun yet");
-        require(totalSupply() + quantity <= collectionSize, "reached max supply");
-        require(numberMinted(msg.sender) + quantity <= maxPerAddressDuringMint, "can not mint this many");
-        _safeMint(msg.sender, quantity);
-        refundIfOver(publicPrice * quantity);
-    }
-
-    // Refund if over
+    // Refund for amount exceeded.
     function refundIfOver(uint256 price) private {
-        require(msg.value >= price, "Need to send more ETH.");
+        require(msg.value >= price, "refundIfOver: Insufficient account balance.");
         if (msg.value > price) {
             payable(msg.sender).transfer(msg.value - price);
         }
     }
 
-    // Determining whether to start a public sale
-    function isPublicSaleOn(
-        uint256 publicPriceWei,
-        uint256 publicSaleKey,
-        uint256 publicSaleStartTime
-    ) public view returns (bool) {
-        return publicPriceWei != 0 && publicSaleKey != 0 && block.timestamp >= publicSaleStartTime;
-    }
-
-    uint256 public constant AUCTION_START_PRICE = 1 ether;
-    uint256 public constant AUCTION_END_PRICE = 0.15 ether;
-    uint256 public constant AUCTION_PRICE_CURVE_LENGTH = 340 minutes;
-    uint256 public constant AUCTION_DROP_INTERVAL = 20 minutes;
-    uint256 public constant AUCTION_DROP_PER_STEP = (AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
-
-    // Get auction price
-    function getAuctionPrice(uint256 _saleStartTime) public view returns (uint256) {
-        if (block.timestamp < _saleStartTime) {
-            return AUCTION_START_PRICE;
+    /**
+     * @dev whiteList mint
+     * @param quantity {uint64} Mint quantity
+     */
+    function whiteListMint(uint64 quantity) external payable callerIsUser {
+        uint64 price = uint64(saleConfig.whitePrice);
+        require(whiteList[msg.sender] > 0, "whiteListMint: Not eligible for whiteList mint");
+        require(whiteList[msg.sender] >= quantity, "whiteListMint: Exceeding the number of castings in the whiteList");
+        require(totalSupply() + quantity <= collectionSize, "whiteListMint: Exceeding maximum supply limit");
+        for (uint256 i = 0; i < quantity; i++) {
+            whiteList[msg.sender]--;
         }
-        if (block.timestamp - _saleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
-            return AUCTION_END_PRICE;
-        } else {
-            uint256 steps = (block.timestamp - _saleStartTime) / AUCTION_DROP_INTERVAL;
-            return AUCTION_START_PRICE - (steps * AUCTION_DROP_PER_STEP);
-        }
+        _safeMint(msg.sender, quantity);
+        refundIfOver(price * quantity);
     }
 
-    // Set initial data configuration
-    function setupSaleInfo(
-        uint64 mintlistPrice,
-        uint64 publicPrice,
-        uint32 publicSaleStartTime
-    ) external onlyOwner {
-        saleConfig = SaleConfig(0, publicSaleStartTime, mintlistPrice, publicPrice, saleConfig.publicSaleKey);
+    /**
+     * @dev Public sale mint
+     * @param quantity {uint64} Mint quantity
+     */
+    function publicSaleMint(uint256 quantity) external payable callerIsUser {
+        uint256 publicPrice = uint256(saleConfig.publicPrice);
+        uint32 publicStartTime = uint32(saleConfig.publicStartTime);
+        uint8 publicMaxNumber = uint8(saleConfig.publicMaxNumber);
+        require(block.timestamp >= publicStartTime, "publicSaleMint: Public sale has not begun yet");
+        require(totalSupply() + quantity <= collectionSize, "publicSaleMint: Exceeding maximum supply limit");
+        require(numberMinted(msg.sender) + quantity <= publicMaxNumber, "publicSaleMint: Can not mint this many");
+        _safeMint(msg.sender, quantity);
+        refundIfOver(publicPrice * quantity);
     }
 
-    // Send the remaining amount of NFTs to the wallet
-    function devMint(address devAddress, uint256 quantity) external onlyOwner {
-        require(devAddress != address(0), "address cannot be empty");
+    /**
+     * @dev Batch mint remaining NFTs
+     * @param dev       {address}
+     * @param quantity  {uint256} White sales price
+     */
+    function devMint(address dev, uint256 quantity) external onlyOwner {
+        require(dev != address(0), "address cannot be empty");
         require(quantity > 0, "quantity cannot be less than or equal to 0");
         uint256 leftOver = collectionSize - totalSupply();
         while (leftOver > 10) {
-            _safeMint(devAddress, 10);
+            _safeMint(dev, 10);
             leftOver -= 10;
         }
         if (leftOver > 0) {
-            _safeMint(devAddress, leftOver);
+            _safeMint(dev, leftOver);
         }
     }
 
-    // Set the Dutch beat start time
-    function setAuctionSaleStartTime(uint32 timestamp) external onlyOwner {
-        saleConfig.auctionSaleStartTime = timestamp;
-    }
-
-    // Set public mint key
-    function setPublicSaleKey(uint32 key) external onlyOwner {
-        saleConfig.publicSaleKey = key;
-    }
-
-    // Set up a whitelist
-    function setWhiteList(address[] memory addresses, uint256[] memory numSlots) external onlyOwner {
-        require(addresses.length == numSlots.length, "addresses does not match numSlots length");
-        for (uint256 i = 0; i < addresses.length; i++) {
-            whitelist[addresses[i]] = numSlots[i];
-        }
-    }
-
-    // Set up share account and ratio
-    function setBeneficiaryList(address[] memory addresses, uint256[] memory numShares) external onlyOwner {
-        require(addresses.length == numShares.length, "addresses does not match numScaleSlots length");
-        for (uint256 i = 0; i < addresses.length; i++) {
-            withdrawAddress.push(addresses[i]);
-            shares.push(numShares[i]);
-        }
-    }
-
-    string private _baseTokenURI;
-
-    function _baseURI() internal view virtual override returns (string memory) {
-        return _baseTokenURI;
-    }
-
-    function setBaseURI(string calldata baseURI) external onlyOwner {
-        _baseTokenURI = baseURI;
-    }
-
-    function withdrawMoney() external onlyOwner nonReentrant {
-        require(withdrawAddress.length != 0, "No beneficiary address");
-        uint256 balance = address(this).balance;
-        for (uint256 i = 0; i < withdrawAddress.length; i++) {
-            uint256 amount = balance * (shares[i] / 100);
-            payable(withdrawAddress[i]).transfer(amount);
-        }
-    }
-
+    /**
+     * @dev Number minted
+     * @param owner {uint64} owner Query address
+     * @return {uint256} NFT number
+     */
     function numberMinted(address owner) public view returns (uint256) {
         return _numberMinted(owner);
     }
 
-    function getOwnershipData(uint256 tokenId) external view returns (TokenOwnership memory) {
-        return _ownershipOf(tokenId);
+    /**
+     * @dev Set sales information
+     * @param whiteStartTime    {uint32} White list start time
+     * @param whitePrice        {uint64} White sales price
+     * @param publicStartTime   {uint32} Public sales start time
+     * @param publicPrice       {uint64} Public sales price
+     * @param publicMaxNumber   {uint8} Public sales max number
+     */
+    function setSaleConfig(
+        uint32 whiteStartTime,
+        uint64 whitePrice,
+        uint32 publicStartTime,
+        uint64 publicPrice,
+        uint8 publicMaxNumber
+    ) external onlyOwner {
+        require(whiteStartTime > block.timestamp, "setSaleConfig: whiteStartTime <= timestamp");
+        require(publicStartTime > block.timestamp, "setSaleConfig: publicStartTime <= timestamp");
+        require(whitePrice >= 0, "setSaleConfig: whitePrice <= 0");
+        require(publicPrice >= 0, "setSaleConfig: publicPrice <= 0");
+        require(publicMaxNumber > 0, "setSaleConfig: publicMaxNumber <= 0");
+        saleConfig = SaleConfig(whiteStartTime, whitePrice, publicStartTime, publicPrice, publicMaxNumber);
+    }
+
+    /**
+     * @dev Set white list
+     * @param list          {address[]} White list address
+     * @param numberSlots   {uint8[]}   Configuration of the casting quantity for white sheets.
+     */
+    function setWhiteList(address[] memory list, uint8[] memory numberSlots) external onlyOwner {
+        require(list.length == numberSlots.length, "setWhiteList: The list does not match the quantity.");
+        for (uint256 i = 0; i < list.length; i++) {
+            whiteList[list[i]] = numberSlots[i];
+        }
+    }
+
+    /**
+     * @dev set profit info
+     * @param accounts      {address[]} List of Divided Accounts
+     * @param numberSlots   {uint8[]}   Proportion of revenue sharing account
+     */
+    function setProfit(address[] memory accounts, uint8[] memory numberSlots) external onlyOwner {
+        require(accounts.length == numberSlots.length, "setProfit: The list does not match the quantity.");
+        for (uint256 i = 0; i < accounts.length; i++) {
+            profitAccount.push(accounts[i]);
+            profitProportion.push(numberSlots[i]);
+        }
+    }
+
+    // NFT base url
+    function _baseURI() internal view virtual override returns (string memory) {
+        return baseTokenURI;
+    }
+
+    /**
+     * @dev set NFT base url
+     * @param baseURI      {string} NFT meatData url
+     */
+    function setBaseURI(string calldata baseURI) external onlyOwner {
+        baseTokenURI = baseURI;
+    }
+
+    // Withdraw the contract amount
+    function withdrawMoney() external onlyOwner nonReentrant {
+        require(profitAccount.length != 0, "withdrawMoney: No profit account address");
+        uint256 balance = address(this).balance;
+        for (uint256 i = 0; i < profitAccount.length; i++) {
+            uint256 amount = balance * (profitProportion[i] / 100);
+            payable(profitAccount[i]).transfer(amount);
+        }
     }
 }
