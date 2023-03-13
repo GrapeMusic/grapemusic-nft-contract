@@ -6,7 +6,7 @@ require("hardhat-gas-reporter");
 require("solidity-coverage");
 const {ProxyAgent, setGlobalDispatcher} = require("undici");
 
-const proxyAgent = new ProxyAgent("https://127.0.0.1:7890");
+const proxyAgent = new ProxyAgent("https://127.0.0.1:7892");
 setGlobalDispatcher(proxyAgent);
 
 // This is a sample Hardhat task. To learn how to create your own go to

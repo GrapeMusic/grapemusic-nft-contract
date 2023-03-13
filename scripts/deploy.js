@@ -15,7 +15,7 @@ async function main() {
 
     // We get the contract to deploy
     const GrapeMusic = await hre.ethers.getContractFactory("GrapeMusic");
-    const grapeMusic = await GrapeMusic.deploy("GrapeMusicAlpha", "GMA", 10, 50, 40);
+    const grapeMusic = await GrapeMusic.deploy("GrapeMusicAlpha", "GMA", 50);
 
     await grapeMusic.deployed();
 

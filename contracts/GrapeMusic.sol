@@ -16,19 +16,19 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 //                 |_|
 
 contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
-    mapping(address => uint256) public whiteList; // White list
+    mapping(address => uint64) public whiteList; // White list
     uint256 public immutable collectionSize; // Total issuance of NFTs.
 
-    address[] private profitAccount; // Address participating in profit sharing.
-    uint8[] private profitProportion; // Profit sharing ratio of participating accounts.
+    address[] public profitAccount; // Address participating in profit sharing.
+    uint256[] public profitProportion; // Profit sharing ratio of participating accounts.
     string private baseTokenURI; // NFT base url
 
     struct SaleConfig {
-        uint32 whiteStartTime; // White list sale start time
-        uint64 whitePrice; // White list sale price
+        uint32 whiteListStartTime; // White list sale start time
+        uint64 whiteListPrice; // White list sale price
         uint32 publicStartTime; // Public sale start time
         uint64 publicPrice; // Public sale price
-        uint8 publicMaxNumber; // Maximum public number
+        uint256 publicMaxNumber; // Maximum public number
     }
     SaleConfig public saleConfig;
 
@@ -55,7 +55,9 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
      * @param quantity {uint64} Mint quantity
      */
     function whiteListMint(uint64 quantity) external payable callerIsUser {
-        uint64 price = uint64(saleConfig.whitePrice);
+        uint64 price = uint64(saleConfig.whiteListPrice);
+        uint32 whiteListStartTime = uint32(saleConfig.whiteListStartTime);
+        require(block.timestamp >= whiteListStartTime, "whiteListMint: whiteList sale has not begun yet");
         require(whiteList[msg.sender] > 0, "whiteListMint: Not eligible for whiteList mint");
         require(whiteList[msg.sender] >= quantity, "whiteListMint: Exceeding the number of castings in the whiteList");
         require(totalSupply() + quantity <= collectionSize, "whiteListMint: Exceeding maximum supply limit");
@@ -73,7 +75,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     function publicSaleMint(uint256 quantity) external payable callerIsUser {
         uint256 publicPrice = uint256(saleConfig.publicPrice);
         uint32 publicStartTime = uint32(saleConfig.publicStartTime);
-        uint8 publicMaxNumber = uint8(saleConfig.publicMaxNumber);
+        uint256 publicMaxNumber = uint256(saleConfig.publicMaxNumber);
         require(block.timestamp >= publicStartTime, "publicSaleMint: Public sale has not begun yet");
         require(totalSupply() + quantity <= collectionSize, "publicSaleMint: Exceeding maximum supply limit");
         require(numberMinted(msg.sender) + quantity <= publicMaxNumber, "publicSaleMint: Can not mint this many");
@@ -84,11 +86,9 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     /**
      * @dev Batch mint remaining NFTs
      * @param dev       {address}
-     * @param quantity  {uint256} White sales price
      */
-    function devMint(address dev, uint256 quantity) external onlyOwner {
-        require(dev != address(0), "address cannot be empty");
-        require(quantity > 0, "quantity cannot be less than or equal to 0");
+    function devMint(address dev) external onlyOwner {
+        require(dev != address(0), "devMint: Address cannot be empty");
         uint256 leftOver = collectionSize - totalSupply();
         while (leftOver > 10) {
             _safeMint(dev, 10);
@@ -110,33 +110,33 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
 
     /**
      * @dev Set sales information
-     * @param whiteStartTime    {uint32} White list start time
-     * @param whitePrice        {uint64} White sales price
+     * @param whiteListStartTime    {uint32} White list start time
+     * @param whiteListPrice        {uint64} White sales price
      * @param publicStartTime   {uint32} Public sales start time
      * @param publicPrice       {uint64} Public sales price
-     * @param publicMaxNumber   {uint8} Public sales max number
+     * @param publicMaxNumber   {uint256} Public sales max number
      */
     function setSaleConfig(
-        uint32 whiteStartTime,
-        uint64 whitePrice,
+        uint32 whiteListStartTime,
+        uint64 whiteListPrice,
         uint32 publicStartTime,
         uint64 publicPrice,
-        uint8 publicMaxNumber
+        uint256 publicMaxNumber
     ) external onlyOwner {
-        require(whiteStartTime > block.timestamp, "setSaleConfig: whiteStartTime <= timestamp");
+        require(whiteListStartTime > block.timestamp, "setSaleConfig: whiteListStartTime <= timestamp");
         require(publicStartTime > block.timestamp, "setSaleConfig: publicStartTime <= timestamp");
-        require(whitePrice >= 0, "setSaleConfig: whitePrice <= 0");
+        require(whiteListPrice >= 0, "setSaleConfig: whiteListPrice <= 0");
         require(publicPrice >= 0, "setSaleConfig: publicPrice <= 0");
         require(publicMaxNumber > 0, "setSaleConfig: publicMaxNumber <= 0");
-        saleConfig = SaleConfig(whiteStartTime, whitePrice, publicStartTime, publicPrice, publicMaxNumber);
+        saleConfig = SaleConfig(whiteListStartTime, whiteListPrice, publicStartTime, publicPrice, publicMaxNumber);
     }
 
     /**
      * @dev Set white list
      * @param list          {address[]} White list address
-     * @param numberSlots   {uint8[]}   Configuration of the casting quantity for white sheets.
+     * @param numberSlots   {uint256[]}   Configuration of the casting quantity for white sheets.
      */
-    function setWhiteList(address[] memory list, uint8[] memory numberSlots) external onlyOwner {
+    function setWhiteList(address[] memory list, uint64[] memory numberSlots) external onlyOwner {
         require(list.length == numberSlots.length, "setWhiteList: The list does not match the quantity.");
         for (uint256 i = 0; i < list.length; i++) {
             whiteList[list[i]] = numberSlots[i];
@@ -145,13 +145,13 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
 
     /**
      * @dev set profit info
-     * @param accounts      {address[]} List of Divided Accounts
-     * @param numberSlots   {uint8[]}   Proportion of revenue sharing account
+     * @param participationAddress      {address[]}  List of Divided Accounts
+     * @param numberSlots               {uint256[]}  Proportion of revenue sharing account
      */
-    function setProfit(address[] memory accounts, uint8[] memory numberSlots) external onlyOwner {
-        require(accounts.length == numberSlots.length, "setProfit: The list does not match the quantity.");
-        for (uint256 i = 0; i < accounts.length; i++) {
-            profitAccount.push(accounts[i]);
+    function setProfit(address[] calldata participationAddress, uint256[] calldata numberSlots) external onlyOwner {
+        require(participationAddress.length == numberSlots.length, "setProfit: The list does not match the quantity.");
+        for (uint256 i = 0; i < participationAddress.length; i++) {
+            profitAccount.push(participationAddress[i]);
             profitProportion.push(numberSlots[i]);
         }
     }
@@ -174,7 +174,7 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
         require(profitAccount.length != 0, "withdrawMoney: No profit account address");
         uint256 balance = address(this).balance;
         for (uint256 i = 0; i < profitAccount.length; i++) {
-            uint256 amount = balance * (profitProportion[i] / 100);
+            uint256 amount = (balance * profitProportion[i]) / 100;
             payable(profitAccount[i]).transfer(amount);
         }
     }
