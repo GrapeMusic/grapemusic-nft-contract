@@ -11,8 +11,7 @@ npm install
 
 npm run compile
 npm run clean
-npm run deploy
-npm run verify
-
+npx hardhat run --network goerli scripts/deploy.js
+npx hardhat verify --network goerli address --constructor-args scripts/arguments.js
 # For more tasks, please check `npx hardhat`
 ```
