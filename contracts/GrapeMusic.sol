@@ -84,6 +84,24 @@ contract GrapeMusic is ERC721A, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Get the NFT number of the account according to the wallet address.
+     * @param account {address} Wallet address
+     */
+    function getTokenData(address account) public view returns (uint256[] memory tokens, string[] memory tokenData) {
+        uint256 balance = balanceOf(account);
+        tokens = new uint256[](balance);
+        tokenData = new string[](balance);
+        uint256 index = 0;
+        for (uint256 i = 0; i < totalSupply(); i++) {
+            if (ownerOf(i) == account) {
+                tokens[index] = i;
+                tokenData[index] = tokenURI(i);
+                index++;
+            }
+        }
+    }
+
+    /**
      * @dev Batch mint remaining NFTs
      * @param dev       {address}
      */

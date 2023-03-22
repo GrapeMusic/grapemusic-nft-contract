@@ -1,1 +1,1 @@
-module.exports = ["GrapeMusic01", "GMA01", 50];
+module.exports = ["GrapeMusic1", "GMA1", 50];

@@ -12,11 +12,18 @@ async function main() {
     // If this script is run directly using `node` you may want to call compile
     // manually to make sure everything is compiled
     // await hre.run('compile');
+    const provider = new hre.ethers.providers.JsonRpcProvider(process.env.RINKEBY_URL);
+    // 要查询的账户地址
+    const wallet = new hre.ethers.Wallet(process.env.PRIVATE_KEY);
 
+    // 获取余额
+    const balanceBig = await provider.getBalance(wallet.address);
+    const balance = hre.ethers.utils.formatEther(balanceBig);
+
+    console.log(`deploy wallet: ${wallet.address}\nwallet balance: ${balance} ETH`);
     // We get the contract to deploy
     const GrapeMusic = await hre.ethers.getContractFactory("GrapeMusic");
-    const grapeMusic = await GrapeMusic.deploy("GrapeMusic01", "GMA01", 50);
-
+    const grapeMusic = await GrapeMusic.deploy("GrapeMusic1", "GMA1", 50);
     await grapeMusic.deployed();
 
     console.log("GrapeMusic deployed address:", grapeMusic.address);

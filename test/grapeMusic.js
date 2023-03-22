@@ -10,8 +10,8 @@ describe("GrapeMusic", function () {
     let addr3;
     let addr4;
 
-    const whiteListStartTime = 1681430400;
-    const publicStartTime = 1681530400;
+    const whiteListStartTime = parseInt(new Date().getTime() / 1000 + 86400);
+    const publicStartTime = parseInt(new Date().getTime() / 1000 + 86400 * 2);
     let timestamp = whiteListStartTime;
     const whiteListPrice = ethers.utils.parseEther("1.0");
     const publicPrice = ethers.utils.parseEther("5.0");
@@ -86,6 +86,9 @@ describe("GrapeMusic", function () {
             const num = await grapeMusic.numberMinted(addr1.address);
             expect(parseInt(num)).to.equal(5);
             timestamp = timestamp + 100;
+            const {tokens, tokenData} = await grapeMusic.getTokenData(addr1.address);
+            expect(tokens.length).to.equal(5);
+            expect(tokenData.length).to.equal(5);
         });
 
         it("Verify dev mint", async function () {
