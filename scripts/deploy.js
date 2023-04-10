@@ -19,11 +19,12 @@ async function main() {
     // 获取余额
     const balanceBig = await provider.getBalance(wallet.address);
     const balance = hre.ethers.utils.formatEther(balanceBig);
+    const feeData = await provider.getFeeData();
 
     console.log(`deploy wallet: ${wallet.address}\nwallet balance: ${balance} ETH`);
     // We get the contract to deploy
     const GrapeMusic = await hre.ethers.getContractFactory("GrapeMusic");
-    const grapeMusic = await GrapeMusic.deploy("GrapeMusic1", "GMA1", 50);
+    const grapeMusic = await GrapeMusic.deploy("雙生花集", "雙生花集", 300);
     await grapeMusic.deployed();
 
     console.log("GrapeMusic deployed address:", grapeMusic.address);

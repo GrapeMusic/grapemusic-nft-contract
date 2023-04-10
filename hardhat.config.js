@@ -23,6 +23,11 @@ module.exports = {
             url: process.env.RINKEBY_URL || "",
             accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
         },
+        mainnet: {
+            chainId: 1,
+            url: process.env.RINKEBY_URL || "",
+            accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+        },
     },
     etherscan: {
         apiKey: process.env.ETHERSCAN_API_KEY,
